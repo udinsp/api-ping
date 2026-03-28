@@ -33,7 +33,11 @@ func newStatusPageCmd() *cobra.Command {
 			}
 			defer store.Close()
 
-			statuses, _ := store.GetAllStatus()
+			statuses, err := store.GetAllStatus()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting status: %v\n", err)
+				os.Exit(1)
+			}
 
 			type EndpointStatus struct {
 				Name       string
