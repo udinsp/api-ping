@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -65,7 +66,7 @@ func (s *Store) SaveCheck(r CheckResult) error {
 func (s *Store) GetRecentChecks(endpoint string, hours int) ([]CheckResult, error) {
 	rows, err := s.db.Query(
 		"SELECT id, endpoint, url, status_code, duration_ms, success, error, checked_at FROM checks WHERE endpoint = ? AND checked_at > datetime('now', ?) ORDER BY checked_at DESC",
-		endpoint, "-"+string(rune(hours))+" hours",
+		endpoint, fmt.Sprintf("-%d hours", hours),
 	)
 	if err != nil {
 		return nil, err
@@ -87,7 +88,7 @@ func (s *Store) GetUptime(endpoint string, hours int) (float64, error) {
 	var total, success int
 	err := s.db.QueryRow(
 		"SELECT COUNT(*), COALESCE(SUM(CASE WHEN success THEN 1 ELSE 0 END), 0) FROM checks WHERE endpoint = ? AND checked_at > datetime('now', ?)",
-		endpoint, "-"+string(rune(hours))+" hours",
+		endpoint, fmt.Sprintf("-%d hours", hours),
 	).Scan(&total, &success)
 	if err != nil {
 		return 0, err
