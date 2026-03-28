@@ -18,6 +18,7 @@ type Endpoint struct {
 	Timeout        int               `yaml:"timeout,omitempty"`
 	ExpectedStatus int               `yaml:"expected_status,omitempty"`
 	ExpectedBody   string            `yaml:"expected_body,omitempty"`
+	MaxDuration    int               `yaml:"max_duration,omitempty"` // max response time in ms
 }
 
 func (e Endpoint) GetMethod() string {
@@ -46,6 +47,13 @@ func (e Endpoint) GetInterval() time.Duration {
 		return 60 * time.Second
 	}
 	return time.Duration(e.Interval) * time.Second
+}
+
+func (e Endpoint) GetMaxDuration() time.Duration {
+	if e.MaxDuration <= 0 {
+		return 0 // no limit
+	}
+	return time.Duration(e.MaxDuration) * time.Millisecond
 }
 
 type TelegramConfig struct {

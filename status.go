@@ -56,6 +56,8 @@ func newStatusCmd() *cobra.Command {
 				status := "✓ UP"
 				if !s.Success {
 					status = "✗ DOWN"
+				} else if ep.GetMaxDuration() > 0 && s.Duration > ep.GetMaxDuration().Milliseconds() {
+					status = "~ SLOW"
 				}
 
 				ago := time.Since(s.CheckedAt).Round(time.Second)
