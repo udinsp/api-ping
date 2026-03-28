@@ -168,7 +168,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#e2
   <div class="endpoint">
     <div class="endpoint-info">
       <h3>{{ .Name | html }}</h3>
-      <p>{{ .URL }}</p>
+      <p>{{ .URL | html }}</p>
       <div class="uptime">Uptime 24h: {{ printf "%.1f" .Uptime24h }}% | 7d: {{ printf "%.1f" .Uptime7d }}%</div>
     </div>
     <div class="endpoint-stats">
