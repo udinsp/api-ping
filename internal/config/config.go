@@ -19,6 +19,8 @@ type Endpoint struct {
 	ExpectedStatus int               `yaml:"expected_status,omitempty"`
 	ExpectedBody   string            `yaml:"expected_body,omitempty"`
 	MaxDuration    int               `yaml:"max_duration,omitempty"` // max response time in ms
+	Retries        int               `yaml:"retries,omitempty"`      // retries on failure
+	RetryDelay     int               `yaml:"retry_delay,omitempty"`  // delay between retries in seconds
 }
 
 func (e Endpoint) GetMethod() string {
@@ -132,4 +134,18 @@ func DefaultConfig() *Config {
 		},
 		DBPath: "api-ping.db",
 	}
+}
+
+func (e Endpoint) GetRetries() int {
+	if e.Retries < 0 {
+		return 0
+	}
+	return e.Retries
+}
+
+func (e Endpoint) GetRetryDelay() time.Duration {
+	if e.RetryDelay <= 0 {
+		return 1 * time.Second
+	}
+	return time.Duration(e.RetryDelay) * time.Second
 }
