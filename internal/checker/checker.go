@@ -17,10 +17,31 @@ type Result struct {
 	Duration   time.Duration
 	Success    bool
 	Slow       bool
+	Retries    int
 	Error      string
 }
 
 func Check(ep config.Endpoint) Result {
+	maxRetries := ep.GetRetries()
+	var lastResult Result
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(ep.GetRetryDelay())
+		}
+
+		lastResult = checkOnce(ep)
+		lastResult.Retries = attempt
+
+		if lastResult.Success {
+			return lastResult
+		}
+	}
+
+	return lastResult
+}
+
+func checkOnce(ep config.Endpoint) Result {
 	client := &http.Client{
 		Timeout: ep.GetTimeout(),
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -62,7 +83,6 @@ func Check(ep config.Endpoint) Result {
 
 	success := resp.StatusCode == ep.GetExpectedStatus()
 
-	// Check expected body if specified
 	if success && ep.ExpectedBody != "" {
 		respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
 		if err != nil {
@@ -90,7 +110,6 @@ func Check(ep config.Endpoint) Result {
 		result.Error = fmt.Sprintf("expected status %d, got %d", ep.GetExpectedStatus(), resp.StatusCode)
 	}
 
-	// Check if response is slow
 	if ep.GetMaxDuration() > 0 && duration > ep.GetMaxDuration() {
 		result.Slow = true
 	}
