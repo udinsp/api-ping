@@ -70,7 +70,8 @@ func sendTelegram(tg config.TelegramConfig, event string, result checker.Result)
 		"parse_mode": "Markdown",
 	})
 
-	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -90,29 +91,30 @@ func sendDiscord(dc config.DiscordConfig, event string, result checker.Result) e
 		color = 0xffff00 // yellow
 	}
 
-	embed := map[string]interface{}{
-		"title":  fmt.Sprintf("api-ping | %s", event),
-		"color":  color,
-		"fields": []map[string]interface{}{
-			{"name": "Endpoint", "value": result.Endpoint.Name, "inline": true},
-			{"name": "Status", "value": fmt.Sprintf("%d", result.StatusCode), "inline": true},
-			{"name": "Duration", "value": result.Duration.Round(time.Millisecond).String(), "inline": true},
-			{"name": "URL", "value": result.Endpoint.URL, "inline": false},
-		},
-		"timestamp": time.Now().Format(time.RFC3339),
+	fields := []map[string]interface{}{
+		{"name": "Endpoint", "value": result.Endpoint.Name, "inline": true},
+		{"name": "Status", "value": fmt.Sprintf("%d", result.StatusCode), "inline": true},
+		{"name": "Duration", "value": result.Duration.Round(time.Millisecond).String(), "inline": true},
+		{"name": "URL", "value": result.Endpoint.URL, "inline": false},
 	}
 
 	if result.Error != "" {
-		embed["fields"] = append(embed["fields"].([]map[string]interface{}),
-			map[string]interface{}{"name": "Error", "value": result.Error, "inline": false},
-		)
+		fields = append(fields, map[string]interface{}{"name": "Error", "value": result.Error, "inline": false})
+	}
+
+	embed := map[string]interface{}{
+		"title":    fmt.Sprintf("api-ping | %s", event),
+		"color":    color,
+		"fields":   fields,
+		"timestamp": time.Now().Format(time.RFC3339),
 	}
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"embeds": []interface{}{embed},
 	})
 
-	resp, err := http.Post(dc.WebhookURL, "application/json", bytes.NewReader(body))
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(dc.WebhookURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -147,11 +149,16 @@ func sendWebhook(wh config.WebhookConfig, event string, result checker.Result) e
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("webhook returned %d", resp.StatusCode)
+	}
 
 	return nil
 }
