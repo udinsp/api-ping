@@ -14,7 +14,10 @@ func configPath() string {
 	if p := os.Getenv("APIPING_CONFIG"); p != "" {
 		return p
 	}
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".api-ping.yaml"
+	}
 	return filepath.Join(home, ".api-ping.yaml")
 }
 
