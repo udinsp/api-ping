@@ -115,5 +115,10 @@ func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Sto
 		notify.NotifyAll(notifs, "recovered", result)
 	}
 
+	// Notify on slow response
+	if result.Slow {
+		notify.NotifyAll(notifs, "slow", result)
+	}
+
 	prevState[ep.Name] = isUp
 }

@@ -16,6 +16,7 @@ type Result struct {
 	StatusCode int
 	Duration   time.Duration
 	Success    bool
+	Slow       bool
 	Error      string
 }
 
@@ -87,6 +88,11 @@ func Check(ep config.Endpoint) Result {
 
 	if !success {
 		result.Error = fmt.Sprintf("expected status %d, got %d", ep.GetExpectedStatus(), resp.StatusCode)
+	}
+
+	// Check if response is slow
+	if ep.GetMaxDuration() > 0 && duration > ep.GetMaxDuration() {
+		result.Slow = true
 	}
 
 	return result
