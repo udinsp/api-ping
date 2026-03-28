@@ -106,22 +106,30 @@ func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Sto
 		ep.URL,
 	)
 
+	// Determine notification events before acquiring lock
+	var events []string
+
 	mu.Lock()
 	wasUp := prevState[ep.Name]
 	isUp := result.Success
 	wasSlow := prevSlow[ep.Name]
 
 	if wasUp && !isUp {
-		notify.NotifyAll(notifs, "down", result)
+		events = append(events, "down")
 	} else if !wasUp && isUp {
-		notify.NotifyAll(notifs, "recovered", result)
+		events = append(events, "recovered")
 	}
 
 	if result.Slow && !wasSlow {
-		notify.NotifyAll(notifs, "slow", result)
+		events = append(events, "slow")
 	}
 
 	prevState[ep.Name] = isUp
 	prevSlow[ep.Name] = result.Slow
 	mu.Unlock()
+
+	// Send notifications outside of lock to avoid blocking other goroutines
+	for _, event := range events {
+		notify.NotifyAll(notifs, event, result)
+	}
 }

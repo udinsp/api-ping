@@ -11,6 +11,9 @@ import (
 	"github.com/trioplanet/api-ping/internal/config"
 )
 
+// Reusable HTTP client with timeout for better performance
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+
 type Notifier interface {
 	Send(event string, result checker.Result) error
 }
@@ -64,13 +67,16 @@ func sendTelegram(tg config.TelegramConfig, event string, result checker.Result)
 	}
 
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", tg.BotToken)
-	body, _ := json.Marshal(map[string]string{
+	body, err := json.Marshal(map[string]string{
 		"chat_id":    tg.ChatID,
 		"text":       msg,
 		"parse_mode": "Markdown",
 	})
+	if err != nil {
+		return fmt.Errorf("marshal telegram payload: %w", err)
+	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+	resp, err := httpClient.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -90,29 +96,32 @@ func sendDiscord(dc config.DiscordConfig, event string, result checker.Result) e
 		color = 0xffff00 // yellow
 	}
 
-	embed := map[string]interface{}{
-		"title":  fmt.Sprintf("api-ping | %s", event),
-		"color":  color,
-		"fields": []map[string]interface{}{
-			{"name": "Endpoint", "value": result.Endpoint.Name, "inline": true},
-			{"name": "Status", "value": fmt.Sprintf("%d", result.StatusCode), "inline": true},
-			{"name": "Duration", "value": result.Duration.Round(time.Millisecond).String(), "inline": true},
-			{"name": "URL", "value": result.Endpoint.URL, "inline": false},
-		},
-		"timestamp": time.Now().Format(time.RFC3339),
+	fields := []map[string]interface{}{
+		{"name": "Endpoint", "value": result.Endpoint.Name, "inline": true},
+		{"name": "Status", "value": fmt.Sprintf("%d", result.StatusCode), "inline": true},
+		{"name": "Duration", "value": result.Duration.Round(time.Millisecond).String(), "inline": true},
+		{"name": "URL", "value": result.Endpoint.URL, "inline": false},
 	}
 
 	if result.Error != "" {
-		embed["fields"] = append(embed["fields"].([]map[string]interface{}),
-			map[string]interface{}{"name": "Error", "value": result.Error, "inline": false},
-		)
+		fields = append(fields, map[string]interface{}{"name": "Error", "value": result.Error, "inline": false})
 	}
 
-	body, _ := json.Marshal(map[string]interface{}{
+	embed := map[string]interface{}{
+		"title":    fmt.Sprintf("api-ping | %s", event),
+		"color":    color,
+		"fields":   fields,
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+
+	body, err := json.Marshal(map[string]interface{}{
 		"embeds": []interface{}{embed},
 	})
+	if err != nil {
+		return fmt.Errorf("marshal discord payload: %w", err)
+	}
 
-	resp, err := http.Post(dc.WebhookURL, "application/json", bytes.NewReader(body))
+	resp, err := httpClient.Post(dc.WebhookURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -130,7 +139,7 @@ func sendWebhook(wh config.WebhookConfig, event string, result checker.Result) e
 		method = "POST"
 	}
 
-	payload, _ := json.Marshal(map[string]interface{}{
+	payload, err := json.Marshal(map[string]interface{}{
 		"event":       event,
 		"endpoint":    result.Endpoint.Name,
 		"url":         result.Endpoint.URL,
@@ -140,6 +149,9 @@ func sendWebhook(wh config.WebhookConfig, event string, result checker.Result) e
 		"error":       result.Error,
 		"timestamp":   time.Now().Format(time.RFC3339),
 	})
+	if err != nil {
+		return fmt.Errorf("marshal webhook payload: %w", err)
+	}
 
 	req, err := http.NewRequest(method, wh.URL, bytes.NewReader(payload))
 	if err != nil {
@@ -147,11 +159,15 @@ func sendWebhook(wh config.WebhookConfig, event string, result checker.Result) e
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("webhook returned %d", resp.StatusCode)
+	}
 
 	return nil
 }

@@ -125,8 +125,12 @@ func newLogsCmd() *cobra.Command {
 					continue
 				}
 
-				uptime, _ := store.GetUptime(ep.Name, hours)
-				fmt.Printf("\n%s (uptime: %.1f%%)\n", ep.Name, uptime)
+			uptime, err := store.GetUptime(ep.Name, hours)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting uptime for %s: %v\n", ep.Name, err)
+				continue
+			}
+			fmt.Printf("\n%s (uptime: %.1f%%)\n", ep.Name, uptime)
 
 				for _, c := range checks {
 					icon := "✓"
