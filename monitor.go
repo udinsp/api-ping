@@ -40,10 +40,11 @@ func newMonitorCmd() *cobra.Command {
 			}
 			defer store.Close()
 
-			// Track previous state for notifications
 			prevState := make(map[string]bool)
+			prevSlow := make(map[string]bool)
 			for _, ep := range cfg.Endpoints {
 				prevState[ep.Name] = true
+				prevSlow[ep.Name] = false
 			}
 
 			fmt.Printf("api-ping monitoring %d endpoints...\n", len(cfg.Endpoints))
@@ -54,6 +55,7 @@ func newMonitorCmd() *cobra.Command {
 			signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 			var wg sync.WaitGroup
+			var mu sync.Mutex
 
 			for _, ep := range cfg.Endpoints {
 				wg.Add(1)
@@ -62,13 +64,12 @@ func newMonitorCmd() *cobra.Command {
 					ticker := time.NewTicker(endpoint.GetInterval())
 					defer ticker.Stop()
 
-					// First check immediately
-					doCheck(endpoint, cfg.Notifications, store, prevState)
+					doCheck(endpoint, cfg.Notifications, store, prevState, prevSlow, &mu)
 
 					for {
 						select {
 						case <-ticker.C:
-							doCheck(endpoint, cfg.Notifications, store, prevState)
+							doCheck(endpoint, cfg.Notifications, store, prevState, prevSlow, &mu)
 						case <-quit:
 							return
 						}
@@ -83,18 +84,18 @@ func newMonitorCmd() *cobra.Command {
 	}
 }
 
-func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Store, prevState map[string]bool) {
+func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Store, prevState map[string]bool, prevSlow map[string]bool, mu *sync.Mutex) {
 	result := checker.Check(ep)
 
-	// Save to database
 	if err := store.SaveCheck(checker.ToStorageResult(result)); err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving check: %v\n", err)
 	}
 
-	// Print status
 	icon := "✓"
 	if !result.Success {
 		icon = "✗"
+	} else if result.Slow {
+		icon = "~"
 	}
 	fmt.Printf("[%s] %s | %s | %d | %v | %s\n",
 		time.Now().Format("15:04:05"),
@@ -105,9 +106,10 @@ func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Sto
 		ep.URL,
 	)
 
-	// Notify on state change
+	mu.Lock()
 	wasUp := prevState[ep.Name]
 	isUp := result.Success
+	wasSlow := prevSlow[ep.Name]
 
 	if wasUp && !isUp {
 		notify.NotifyAll(notifs, "down", result)
@@ -115,10 +117,11 @@ func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Sto
 		notify.NotifyAll(notifs, "recovered", result)
 	}
 
-	// Notify on slow response
-	if result.Slow {
+	if result.Slow && !wasSlow {
 		notify.NotifyAll(notifs, "slow", result)
 	}
 
 	prevState[ep.Name] = isUp
+	prevSlow[ep.Name] = result.Slow
+	mu.Unlock()
 }
