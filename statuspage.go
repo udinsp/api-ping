@@ -53,47 +53,47 @@ func newStatusPageCmd() *cobra.Command {
 			var endpoints []EndpointStatus
 			allUp := true
 
-		for _, ep := range cfg.Endpoints {
-			s, ok := statuses[ep.Name]
-			status := "unknown"
-			statusCode := 0
-			duration := int64(0)
-			lastCheck := "never"
+			for _, ep := range cfg.Endpoints {
+				s, ok := statuses[ep.Name]
+				status := "unknown"
+				statusCode := 0
+				duration := int64(0)
+				lastCheck := "never"
 
-			if ok {
-				statusCode = s.StatusCode
-				duration = s.Duration
-				lastCheck = time.Since(s.CheckedAt).Round(time.Second).String() + " ago"
-				if s.Success {
-					status = "operational"
-				} else {
-					status = "outage"
-					allUp = false
+				if ok {
+					statusCode = s.StatusCode
+					duration = s.Duration
+					lastCheck = time.Since(s.CheckedAt).Round(time.Second).String() + " ago"
+					if s.Success {
+						status = "operational"
+					} else {
+						status = "outage"
+						allUp = false
+					}
 				}
-			}
 
-			uptime24, err := store.GetUptime(ep.Name, 24)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error getting 24h uptime for %s: %v\n", ep.Name, err)
-				os.Exit(1)
-			}
-			uptime7d, err := store.GetUptime(ep.Name, 168)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error getting 7d uptime for %s: %v\n", ep.Name, err)
-				os.Exit(1)
-			}
+				uptime24, err := store.GetUptime(ep.Name, 24)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error getting 24h uptime for %s: %v\n", ep.Name, err)
+					os.Exit(1)
+				}
+				uptime7d, err := store.GetUptime(ep.Name, 168)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error getting 7d uptime for %s: %v\n", ep.Name, err)
+					os.Exit(1)
+				}
 
-			endpoints = append(endpoints, EndpointStatus{
-				Name:       ep.Name,
-				URL:        ep.URL,
-				Status:     status,
-				StatusCode: statusCode,
-				Duration:   duration,
-				Uptime24h:  uptime24,
-				Uptime7d:   uptime7d,
-				LastCheck:  lastCheck,
-			})
-		}
+				endpoints = append(endpoints, EndpointStatus{
+					Name:       ep.Name,
+					URL:        ep.URL,
+					Status:     status,
+					StatusCode: statusCode,
+					Duration:   duration,
+					Uptime24h:  uptime24,
+					Uptime7d:   uptime7d,
+					LastCheck:  lastCheck,
+				})
+			}
 
 			data := struct {
 				Title     string
