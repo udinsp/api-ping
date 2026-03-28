@@ -11,6 +11,9 @@ import (
 	"github.com/trioplanet/api-ping/internal/config"
 )
 
+// Reusable HTTP client with timeout for better performance
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+
 type Notifier interface {
 	Send(event string, result checker.Result) error
 }
@@ -64,14 +67,16 @@ func sendTelegram(tg config.TelegramConfig, event string, result checker.Result)
 	}
 
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", tg.BotToken)
-	body, _ := json.Marshal(map[string]string{
+	body, err := json.Marshal(map[string]string{
 		"chat_id":    tg.ChatID,
 		"text":       msg,
 		"parse_mode": "Markdown",
 	})
+	if err != nil {
+		return fmt.Errorf("marshal telegram payload: %w", err)
+	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post(url, "application/json", bytes.NewReader(body))
+	resp, err := httpClient.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -109,12 +114,14 @@ func sendDiscord(dc config.DiscordConfig, event string, result checker.Result) e
 		"timestamp": time.Now().Format(time.RFC3339),
 	}
 
-	body, _ := json.Marshal(map[string]interface{}{
+	body, err := json.Marshal(map[string]interface{}{
 		"embeds": []interface{}{embed},
 	})
+	if err != nil {
+		return fmt.Errorf("marshal discord payload: %w", err)
+	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post(dc.WebhookURL, "application/json", bytes.NewReader(body))
+	resp, err := httpClient.Post(dc.WebhookURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -132,7 +139,7 @@ func sendWebhook(wh config.WebhookConfig, event string, result checker.Result) e
 		method = "POST"
 	}
 
-	payload, _ := json.Marshal(map[string]interface{}{
+	payload, err := json.Marshal(map[string]interface{}{
 		"event":       event,
 		"endpoint":    result.Endpoint.Name,
 		"url":         result.Endpoint.URL,
@@ -142,6 +149,9 @@ func sendWebhook(wh config.WebhookConfig, event string, result checker.Result) e
 		"error":       result.Error,
 		"timestamp":   time.Now().Format(time.RFC3339),
 	})
+	if err != nil {
+		return fmt.Errorf("marshal webhook payload: %w", err)
+	}
 
 	req, err := http.NewRequest(method, wh.URL, bytes.NewReader(payload))
 	if err != nil {
@@ -149,8 +159,7 @@ func sendWebhook(wh config.WebhookConfig, event string, result checker.Result) e
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
