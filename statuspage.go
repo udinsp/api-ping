@@ -72,7 +72,16 @@ func newStatusPageCmd() *cobra.Command {
 					}
 				}
 
-				uptime24, _ := store.GetUptime(ep.Name, 24)
+			uptime24, err := store.GetUptime(ep.Name, 24)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting 24h uptime for %s: %v\n", ep.Name, err)
+				os.Exit(1)
+			}
+			uptime7d, err := store.GetUptime(ep.Name, 168)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting 7d uptime for %s: %v\n", ep.Name, err)
+				os.Exit(1)
+			}
 				uptime7d, _ := store.GetUptime(ep.Name, 168)
 
 				endpoints = append(endpoints, EndpointStatus{
