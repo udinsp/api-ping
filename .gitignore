@@ -1,0 +1,8 @@
+api-ping
+api-ping.db
+*.exe
+*.test
+.DS_Store
+*.db
+*.db-shm
+*.db-wal

@@ -1,0 +1,33 @@
+# api-ping configuration
+# Copy to ~/.api-ping.yaml or use with APIPING_CONFIG env var
+
+endpoints:
+  - name: "JSONPlaceholder"
+    url: "https://jsonplaceholder.typicode.com/posts/1"
+    interval: 120
+    timeout: 10
+    expected_status: 200
+
+  - name: "Google DNS"
+    url: "https://dns.google/resolve?name=example.com"
+    interval: 30
+    timeout: 5
+    expected_status: 200
+
+  - name: "GitHub API"
+    url: "https://api.github.com"
+    interval: 60
+    timeout: 10
+    expected_status: 200
+
+notifications:
+  telegram:
+    bot_token: ""
+    chat_id: ""
+  discord:
+    webhook_url: ""
+  on:
+    - down
+    - recovered
+
+db_path: "api-ping.db"
