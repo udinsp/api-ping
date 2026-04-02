@@ -1,8 +1,10 @@
 package checker
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -10,6 +12,22 @@ import (
 	"github.com/trioplanet/api-ping/internal/config"
 	"github.com/trioplanet/api-ping/internal/storage"
 )
+
+var sharedClient = &http.Client{
+	Transport: &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	},
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return nil
+	},
+}
 
 type Result struct {
 	Endpoint   config.Endpoint
@@ -42,19 +60,15 @@ func Check(ep config.Endpoint) Result {
 }
 
 func checkOnce(ep config.Endpoint) Result {
-	client := &http.Client{
-		Timeout: ep.GetTimeout(),
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return nil
-		},
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), ep.GetTimeout())
+	defer cancel()
 
 	var bodyReader io.Reader
 	if ep.Body != "" {
 		bodyReader = strings.NewReader(ep.Body)
 	}
 
-	req, err := http.NewRequest(ep.GetMethod(), ep.URL, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, ep.GetMethod(), ep.URL, bodyReader)
 	if err != nil {
 		return Result{
 			Endpoint: ep,
@@ -68,7 +82,7 @@ func checkOnce(ep config.Endpoint) Result {
 	}
 
 	start := time.Now()
-	resp, err := client.Do(req)
+	resp, err := sharedClient.Do(req)
 	duration := time.Since(start)
 
 	if err != nil {
