@@ -34,3 +34,4 @@ notifications:
     - recovered
 
 db_path: "api-ping.db"
+retention_days: 90

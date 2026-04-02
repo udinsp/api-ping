@@ -40,6 +40,13 @@ func newMonitorCmd() *cobra.Command {
 			}
 			defer store.Close()
 
+			// Purge old checks on startup
+			if n, err := store.PurgeOldChecks(cfg.GetRetentionDays()); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: cleanup failed: %v\n", err)
+			} else if n > 0 {
+				fmt.Printf("Cleaned up %d old check record(s)\n", n)
+			}
+
 			prevState := make(map[string]bool)
 			prevSlow := make(map[string]bool)
 			for _, ep := range cfg.Endpoints {
@@ -56,6 +63,26 @@ func newMonitorCmd() *cobra.Command {
 
 			var wg sync.WaitGroup
 			var mu sync.Mutex
+
+			// Periodic cleanup goroutine (every 24 hours)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ticker := time.NewTicker(24 * time.Hour)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ticker.C:
+						if n, err := store.PurgeOldChecks(cfg.GetRetentionDays()); err != nil {
+							fmt.Fprintf(os.Stderr, "Warning: cleanup failed: %v\n", err)
+						} else if n > 0 {
+							fmt.Printf("Cleaned up %d old check record(s)\n", n)
+						}
+					case <-quit:
+						return
+					}
+				}
+			}()
 
 			for _, ep := range cfg.Endpoints {
 				wg.Add(1)

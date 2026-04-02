@@ -81,6 +81,9 @@ func (s *Store) GetRecentChecks(endpoint string, hours int) ([]CheckResult, erro
 		}
 		results = append(results, r)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return results, nil
 }
 
@@ -122,9 +125,25 @@ func (s *Store) GetAllStatus() (map[string]CheckResult, error) {
 		}
 		result[r.Endpoint] = r
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+// PurgeOldChecks deletes check records older than the given number of days.
+// Returns the number of rows deleted.
+func (s *Store) PurgeOldChecks(retentionDays int) (int64, error) {
+	result, err := s.db.Exec(
+		"DELETE FROM checks WHERE checked_at < datetime('now', ?)",
+		fmt.Sprintf("-%d days", retentionDays),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

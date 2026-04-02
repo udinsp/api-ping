@@ -25,6 +25,8 @@ func main() {
 		newStatusPageCmd(),
 		newLogsCmd(),
 		newInitCmd(),
+		newListCmd(),
+		newCleanupCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

@@ -1,8 +1,10 @@
 package checker
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -10,6 +12,22 @@ import (
 	"github.com/trioplanet/api-ping/internal/config"
 	"github.com/trioplanet/api-ping/internal/storage"
 )
+
+var sharedClient = &http.Client{
+	Transport: &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	},
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return nil
+	},
+}
 
 type Result struct {
 	Endpoint   config.Endpoint
@@ -42,19 +60,15 @@ func Check(ep config.Endpoint) Result {
 }
 
 func checkOnce(ep config.Endpoint) Result {
-	client := &http.Client{
-		Timeout: ep.GetTimeout(),
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return nil
-		},
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), ep.GetTimeout())
+	defer cancel()
 
 	var bodyReader io.Reader
 	if ep.Body != "" {
 		bodyReader = strings.NewReader(ep.Body)
 	}
 
-	req, err := http.NewRequest(ep.GetMethod(), ep.URL, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, ep.GetMethod(), ep.URL, bodyReader)
 	if err != nil {
 		return Result{
 			Endpoint: ep,
@@ -68,7 +82,7 @@ func checkOnce(ep config.Endpoint) Result {
 	}
 
 	start := time.Now()
-	resp, err := client.Do(req)
+	resp, err := sharedClient.Do(req)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -81,9 +95,10 @@ func checkOnce(ep config.Endpoint) Result {
 	}
 	defer resp.Body.Close()
 
-	success := resp.StatusCode == ep.GetExpectedStatus()
+	statusMatch := resp.StatusCode == ep.GetExpectedStatus()
+	bodyMatch := true
 
-	if success && ep.ExpectedBody != "" {
+	if statusMatch && ep.ExpectedBody != "" {
 		respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
 		if err != nil {
 			return Result{
@@ -95,9 +110,11 @@ func checkOnce(ep config.Endpoint) Result {
 			}
 		}
 		if !strings.Contains(string(respBody), ep.ExpectedBody) {
-			success = false
+			bodyMatch = false
 		}
 	}
+
+	success := statusMatch && bodyMatch
 
 	result := Result{
 		Endpoint:   ep,
@@ -107,7 +124,11 @@ func checkOnce(ep config.Endpoint) Result {
 	}
 
 	if !success {
-		result.Error = fmt.Sprintf("expected status %d, got %d", ep.GetExpectedStatus(), resp.StatusCode)
+		if !statusMatch {
+			result.Error = fmt.Sprintf("expected status %d, got %d", ep.GetExpectedStatus(), resp.StatusCode)
+		} else {
+			result.Error = fmt.Sprintf("expected body to contain %q", ep.ExpectedBody)
+		}
 	}
 
 	if ep.GetMaxDuration() > 0 && duration > ep.GetMaxDuration() {
