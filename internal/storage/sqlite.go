@@ -81,6 +81,9 @@ func (s *Store) GetRecentChecks(endpoint string, hours int) ([]CheckResult, erro
 		}
 		results = append(results, r)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return results, nil
 }
 
@@ -121,6 +124,9 @@ func (s *Store) GetAllStatus() (map[string]CheckResult, error) {
 			return nil, err
 		}
 		result[r.Endpoint] = r
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return result, nil
 }
