@@ -95,6 +95,7 @@ type Config struct {
 	Endpoints     []Endpoint    `yaml:"endpoints"`
 	Notifications Notifications `yaml:"notifications,omitempty"`
 	DBPath        string        `yaml:"db_path,omitempty"`
+	RetentionDays int           `yaml:"retention_days,omitempty"`
 }
 
 func (c Config) GetDBPath() string {
@@ -102,6 +103,13 @@ func (c Config) GetDBPath() string {
 		return "api-ping.db"
 	}
 	return c.DBPath
+}
+
+func (c Config) GetRetentionDays() int {
+	if c.RetentionDays <= 0 {
+		return 90
+	}
+	return c.RetentionDays
 }
 
 func Load(path string) (*Config, error) {
@@ -132,7 +140,8 @@ func DefaultConfig() *Config {
 		Notifications: Notifications{
 			Events: []string{"down", "recovered"},
 		},
-		DBPath: "api-ping.db",
+		DBPath:        "api-ping.db",
+		RetentionDays: 90,
 	}
 }
 
