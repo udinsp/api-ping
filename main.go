@@ -21,6 +21,7 @@ func main() {
 		newAddCmd(),
 		newRemoveCmd(),
 		newMonitorCmd(),
+		newListCmd(),
 		newStatusCmd(),
 		newStatusPageCmd(),
 		newLogsCmd(),
