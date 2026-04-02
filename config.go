@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/trioplanet/api-ping/internal/config"
 
@@ -53,6 +55,13 @@ func newAddCmd() *cobra.Command {
 		Short: "Add an endpoint to monitor",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			u := args[0]
+			parsed, err := url.Parse(u)
+			if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+				fmt.Fprintf(os.Stderr, "Error: invalid URL %q — must be a valid HTTP or HTTPS URL\n", u)
+				os.Exit(1)
+			}
+
 			path := configPath()
 			cfg, err := config.Load(path)
 			if err != nil {
@@ -60,12 +69,19 @@ func newAddCmd() *cobra.Command {
 			}
 
 			if name == "" {
-				name = args[0]
+				name = u
+			}
+
+			for _, ep := range cfg.Endpoints {
+				if strings.EqualFold(ep.Name, name) {
+					fmt.Fprintf(os.Stderr, "Error: endpoint with name %q already exists\n", name)
+					os.Exit(1)
+				}
 			}
 
 			ep := config.Endpoint{
 				Name:     name,
-				URL:      args[0],
+				URL:      u,
 				Method:   method,
 				Interval: interval,
 				Timeout:  timeout,
@@ -77,7 +93,7 @@ func newAddCmd() *cobra.Command {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Printf("Added endpoint: %s (%s)\n", name, args[0])
+			fmt.Printf("Added endpoint: %s (%s)\n", name, u)
 		},
 	}
 
