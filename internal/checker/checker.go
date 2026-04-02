@@ -81,9 +81,10 @@ func checkOnce(ep config.Endpoint) Result {
 	}
 	defer resp.Body.Close()
 
-	success := resp.StatusCode == ep.GetExpectedStatus()
+	statusMatch := resp.StatusCode == ep.GetExpectedStatus()
+	bodyMatch := true
 
-	if success && ep.ExpectedBody != "" {
+	if statusMatch && ep.ExpectedBody != "" {
 		respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
 		if err != nil {
 			return Result{
@@ -95,9 +96,11 @@ func checkOnce(ep config.Endpoint) Result {
 			}
 		}
 		if !strings.Contains(string(respBody), ep.ExpectedBody) {
-			success = false
+			bodyMatch = false
 		}
 	}
+
+	success := statusMatch && bodyMatch
 
 	result := Result{
 		Endpoint:   ep,
@@ -107,7 +110,11 @@ func checkOnce(ep config.Endpoint) Result {
 	}
 
 	if !success {
-		result.Error = fmt.Sprintf("expected status %d, got %d", ep.GetExpectedStatus(), resp.StatusCode)
+		if !statusMatch {
+			result.Error = fmt.Sprintf("expected status %d, got %d", ep.GetExpectedStatus(), resp.StatusCode)
+		} else {
+			result.Error = fmt.Sprintf("expected body to contain %q", ep.ExpectedBody)
+		}
 	}
 
 	if ep.GetMaxDuration() > 0 && duration > ep.GetMaxDuration() {
