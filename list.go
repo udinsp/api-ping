@@ -33,24 +33,22 @@ func newListCmd() *cobra.Command {
 			}
 
 			fmt.Println("Configured endpoints")
-			fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-			fmt.Printf("%-20s %-8s %-10s %-10s %-8s %s\n",
-				"NAME", "METHOD", "INTERVAL", "TIMEOUT", "STATUS", "URL")
-			fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			fmt.Printf("%-20s %-40s %-8s %-10s %-10s %-8s %s\n",
+				"NAME", "URL", "METHOD", "INTERVAL", "TIMEOUT", "STATUS", "NOTIFICATIONS")
+			fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 			for _, ep := range cfg.Endpoints {
-				fmt.Printf("%-20s %-8s %-10s %-10s %-8d %s\n",
+				fmt.Printf("%-20s %-40s %-8s %-10s %-10s %-8d %s\n",
 					ep.Name,
+					ep.URL,
 					ep.GetMethod(),
 					ep.GetInterval(),
 					ep.GetTimeout(),
 					ep.GetExpectedStatus(),
-					ep.URL,
+					events,
 				)
 			}
-
-			fmt.Println()
-			fmt.Printf("Notification events: %s\n", events)
 		},
 	}
 }
