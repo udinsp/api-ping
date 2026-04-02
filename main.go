@@ -25,6 +25,7 @@ func main() {
 		newStatusPageCmd(),
 		newLogsCmd(),
 		newInitCmd(),
+		newListCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
