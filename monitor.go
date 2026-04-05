@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/trioplanet/api-ping/internal/checker"
 	"github.com/trioplanet/api-ping/internal/config"
+	"github.com/trioplanet/api-ping/internal/health"
 	"github.com/trioplanet/api-ping/internal/notify"
 	"github.com/trioplanet/api-ping/internal/storage"
 
@@ -49,13 +51,28 @@ func newMonitorCmd() *cobra.Command {
 
 			prevState := make(map[string]bool)
 			prevSlow := make(map[string]bool)
+			var endpointNames []string
 			for _, ep := range cfg.Endpoints {
 				prevState[ep.Name] = true
 				prevSlow[ep.Name] = false
+				endpointNames = append(endpointNames, ep.Name)
 			}
 
 			fmt.Printf("api-ping monitoring %d endpoints...\n", len(cfg.Endpoints))
 			fmt.Println("Press Ctrl+C to stop")
+
+			healthServerConfig := cfg.GetHealthServer()
+			if healthServerConfig.Enabled {
+				addr := fmt.Sprintf("%s:%d", healthServerConfig.GetBind(), healthServerConfig.GetPort())
+				healthServer := health.New(addr, store, endpointNames)
+				go func() {
+					fmt.Printf("Health server listening on %s\n", addr)
+					if err := healthServer.Start(); err != nil && err != http.ErrServerClosed {
+						fmt.Fprintf(os.Stderr, "Health server error: %v\n", err)
+					}
+				}()
+			}
+
 			fmt.Println()
 
 			quit := make(chan os.Signal, 1)

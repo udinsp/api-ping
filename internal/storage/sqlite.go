@@ -147,3 +147,39 @@ func (s *Store) PurgeOldChecks(retentionDays int) (int64, error) {
 	}
 	return result.RowsAffected()
 }
+
+func (s *Store) GetAllEndpoints() ([]string, error) {
+	rows, err := s.db.Query("SELECT DISTINCT endpoint FROM checks")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var endpoints []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		endpoints = append(endpoints, name)
+	}
+	return endpoints, rows.Err()
+}
+
+func (s *Store) GetAverageResponseTime(endpoint string, hours int) (float64, error) {
+	var avg float64
+	err := s.db.QueryRow(
+		"SELECT COALESCE(AVG(duration_ms), 0) FROM checks WHERE endpoint = ? AND checked_at > datetime('now', ?)",
+		endpoint, fmt.Sprintf("-%d hours", hours),
+	).Scan(&avg)
+	return avg, err
+}
+
+func (s *Store) GetRecentCheckCount(endpoint string, hours int) (int, error) {
+	var count int
+	err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM checks WHERE endpoint = ? AND checked_at > datetime('now', ?)",
+		endpoint, fmt.Sprintf("-%d hours", hours),
+	).Scan(&count)
+	return count, err
+}
