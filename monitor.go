@@ -10,6 +10,7 @@ import (
 
 	"github.com/trioplanet/api-ping/internal/checker"
 	"github.com/trioplanet/api-ping/internal/config"
+	"github.com/trioplanet/api-ping/internal/health"
 	"github.com/trioplanet/api-ping/internal/notify"
 	"github.com/trioplanet/api-ping/internal/storage"
 
@@ -56,6 +57,19 @@ func newMonitorCmd() *cobra.Command {
 
 			fmt.Printf("api-ping monitoring %d endpoints...\n", len(cfg.Endpoints))
 			fmt.Println("Press Ctrl+C to stop")
+
+			var healthServer *health.Server
+			var metrics *health.Metrics
+			if cfg.HealthServer.Enabled {
+				healthServer = health.NewServer(cfg.HealthServer.GetPort(), cfg.HealthServer.GetBind())
+				metrics = healthServer.Metrics()
+				if err := healthServer.Start(); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to start health server: %v\n", err)
+				} else {
+					fmt.Printf("Health server listening on http://%s:%d\n", cfg.HealthServer.GetBind(), cfg.HealthServer.GetPort())
+				}
+			}
+
 			fmt.Println()
 
 			quit := make(chan os.Signal, 1)
@@ -91,12 +105,12 @@ func newMonitorCmd() *cobra.Command {
 					ticker := time.NewTicker(endpoint.GetInterval())
 					defer ticker.Stop()
 
-					doCheck(endpoint, cfg.Notifications, store, prevState, prevSlow, &mu)
+					doCheck(endpoint, cfg.Notifications, store, prevState, prevSlow, &mu, metrics)
 
 					for {
 						select {
 						case <-ticker.C:
-							doCheck(endpoint, cfg.Notifications, store, prevState, prevSlow, &mu)
+							doCheck(endpoint, cfg.Notifications, store, prevState, prevSlow, &mu, metrics)
 						case <-quit:
 							return
 						}
@@ -106,16 +120,23 @@ func newMonitorCmd() *cobra.Command {
 
 			<-quit
 			fmt.Println("\nShutting down...")
+			if healthServer != nil {
+				healthServer.Stop()
+			}
 			wg.Wait()
 		},
 	}
 }
 
-func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Store, prevState map[string]bool, prevSlow map[string]bool, mu *sync.Mutex) {
+func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Store, prevState map[string]bool, prevSlow map[string]bool, mu *sync.Mutex, metrics *health.Metrics) {
 	result := checker.Check(ep)
 
 	if err := store.SaveCheck(checker.ToStorageResult(result)); err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving check: %v\n", err)
+	}
+
+	if metrics != nil {
+		metrics.RecordCheck(ep.Name, result.Success, result.Duration.Milliseconds())
 	}
 
 	icon := "✓"

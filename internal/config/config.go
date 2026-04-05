@@ -92,10 +92,31 @@ func (n Notifications) ShouldNotify(event string) bool {
 }
 
 type Config struct {
-	Endpoints     []Endpoint    `yaml:"endpoints"`
-	Notifications Notifications `yaml:"notifications,omitempty"`
-	DBPath        string        `yaml:"db_path,omitempty"`
-	RetentionDays int           `yaml:"retention_days,omitempty"`
+	Endpoints      []Endpoint      `yaml:"endpoints"`
+	Notifications  Notifications   `yaml:"notifications,omitempty"`
+	DBPath         string          `yaml:"db_path,omitempty"`
+	RetentionDays int             `yaml:"retention_days,omitempty"`
+	HealthServer   HealthServerCfg `yaml:"health_server,omitempty"`
+}
+
+type HealthServerCfg struct {
+	Enabled bool   `yaml:"enabled,omitempty"`
+	Port    int    `yaml:"port,omitempty"`
+	Bind    string `yaml:"bind,omitempty"`
+}
+
+func (h HealthServerCfg) GetPort() int {
+	if h.Port <= 0 {
+		return 8080
+	}
+	return h.Port
+}
+
+func (h HealthServerCfg) GetBind() string {
+	if h.Bind == "" {
+		return "0.0.0.0"
+	}
+	return h.Bind
 }
 
 func (c Config) GetDBPath() string {
