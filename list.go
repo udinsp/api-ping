@@ -39,12 +39,20 @@ func newListCmd() *cobra.Command {
 			fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 			for _, ep := range cfg.Endpoints {
-				fmt.Printf("%-20s %-40s %-8s %-10s %-10s %-8d %s\n",
+				interval := ep.Interval
+				if interval <= 0 {
+					interval = 60
+				}
+				timeout := ep.Timeout
+				if timeout <= 0 {
+					timeout = 10
+				}
+				fmt.Printf("%-20s %-40s %-8s %-10d %-10d %-8d %s\n",
 					ep.Name,
 					ep.URL,
 					ep.GetMethod(),
-					ep.GetInterval(),
-					ep.GetTimeout(),
+					interval,
+					timeout,
 					ep.GetExpectedStatus(),
 					events,
 				)
