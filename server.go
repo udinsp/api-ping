@@ -75,7 +75,22 @@ func newServerCmd() *cobra.Command {
 			fmt.Printf("Health endpoint: http://%s/health\n", addr)
 			fmt.Printf("Metrics endpoint: http://%s/metrics\n", addr)
 
-			if err := http.ListenAndServe(addr, mux); err != nil {
+srv := &http.Server{Addr: addr, Handler: mux}
+go func() {
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+		os.Exit(1)
+	}
+}()
+
+sigCh := make(chan os.Signal, 1)
+signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+<-sigCh
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+defer cancel()
+if err := srv.Shutdown(ctx); err != nil {
+	fmt.Fprintf(os.Stderr, "Server shutdown error: %v\n", err)
+}
 				fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 				os.Exit(1)
 			}
