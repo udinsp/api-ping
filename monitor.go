@@ -58,6 +58,16 @@ func newMonitorCmd() *cobra.Command {
 				endpointNames = append(endpointNames, ep.Name)
 			}
 
+			healthServer := health.New(cfg.HealthServer, store)
+			for _, ep := range cfg.Endpoints {
+				healthServer.AddEndpoint(ep.Name)
+			}
+			if err := healthServer.Start(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error starting health server: %v\n", err)
+				os.Exit(1)
+			}
+			defer healthServer.Stop()
+
 			fmt.Printf("api-ping monitoring %d endpoints...\n", len(cfg.Endpoints))
 			fmt.Println("Press Ctrl+C to stop")
 
@@ -108,12 +118,12 @@ func newMonitorCmd() *cobra.Command {
 					ticker := time.NewTicker(endpoint.GetInterval())
 					defer ticker.Stop()
 
-					doCheck(endpoint, cfg.Notifications, store, prevState, prevSlow, &mu)
+					doCheck(endpoint, cfg.Notifications, store, healthServer, prevState, prevSlow, &mu)
 
 					for {
 						select {
 						case <-ticker.C:
-							doCheck(endpoint, cfg.Notifications, store, prevState, prevSlow, &mu)
+							doCheck(endpoint, cfg.Notifications, store, healthServer, prevState, prevSlow, &mu)
 						case <-quit:
 							return
 						}
@@ -128,12 +138,14 @@ func newMonitorCmd() *cobra.Command {
 	}
 }
 
-func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Store, prevState map[string]bool, prevSlow map[string]bool, mu *sync.Mutex) {
+func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Store, healthServer *health.Server, prevState map[string]bool, prevSlow map[string]bool, mu *sync.Mutex) {
 	result := checker.Check(ep)
 
 	if err := store.SaveCheck(checker.ToStorageResult(result)); err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving check: %v\n", err)
 	}
+
+	healthServer.RecordCheck(ep.Name, result.StatusCode, result.Duration, result.Success)
 
 	icon := "✓"
 	if !result.Success {

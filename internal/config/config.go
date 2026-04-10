@@ -112,11 +112,11 @@ func (n Notifications) ShouldNotify(event string) bool {
 }
 
 type Config struct {
-	Endpoints      []Endpoint         `yaml:"endpoints"`
-	Notifications  Notifications      `yaml:"notifications,omitempty"`
-	HealthServer   HealthServerConfig `yaml:"health_server,omitempty"`
-	DBPath         string            `yaml:"db_path,omitempty"`
-	RetentionDays int               `yaml:"retention_days,omitempty"`
+	Endpoints     []Endpoint        `yaml:"endpoints"`
+	Notifications Notifications   `yaml:"notifications,omitempty"`
+	DBPath        string          `yaml:"db_path,omitempty"`
+	RetentionDays int             `yaml:"retention_days,omitempty"`
+	HealthServer HealthServerConfig `yaml:"health_server,omitempty"`
 }
 
 func (c Config) GetDBPath() string {
@@ -170,6 +170,11 @@ func DefaultConfig() *Config {
 		},
 		DBPath:        "api-ping.db",
 		RetentionDays: 90,
+		HealthServer: HealthServerConfig{
+			Enabled: false,
+			Port:    8080,
+			Bind:    "0.0.0.0",
+		},
 	}
 }
 
