@@ -72,11 +72,31 @@ type WebhookConfig struct {
 	Method string `yaml:"method,omitempty"`
 }
 
+type HealthServerConfig struct {
+	Enabled bool   `yaml:"enabled,omitempty"`
+	Port    int    `yaml:"port,omitempty"`
+	Bind    string `yaml:"bind,omitempty"`
+}
+
+func (h HealthServerConfig) GetPort() int {
+	if h.Port <= 0 {
+		return 8080
+	}
+	return h.Port
+}
+
+func (h HealthServerConfig) GetBind() string {
+	if h.Bind == "" {
+		return "0.0.0.0"
+	}
+	return h.Bind
+}
+
 type Notifications struct {
-	Telegram TelegramConfig `yaml:"telegram,omitempty"`
-	Discord  DiscordConfig  `yaml:"discord,omitempty"`
-	Webhook  WebhookConfig  `yaml:"webhook,omitempty"`
-	Events   []string       `yaml:"on,omitempty"`
+	Telegram TelegramConfig   `yaml:"telegram,omitempty"`
+	Discord  DiscordConfig    `yaml:"discord,omitempty"`
+	Webhook  WebhookConfig    `yaml:"webhook,omitempty"`
+	Events   []string        `yaml:"on,omitempty"`
 }
 
 func (n Notifications) ShouldNotify(event string) bool {
@@ -92,10 +112,11 @@ func (n Notifications) ShouldNotify(event string) bool {
 }
 
 type Config struct {
-	Endpoints     []Endpoint    `yaml:"endpoints"`
-	Notifications Notifications `yaml:"notifications,omitempty"`
-	DBPath        string        `yaml:"db_path,omitempty"`
-	RetentionDays int           `yaml:"retention_days,omitempty"`
+	Endpoints     []Endpoint        `yaml:"endpoints"`
+	Notifications Notifications     `yaml:"notifications,omitempty"`
+	DBPath        string            `yaml:"db_path,omitempty"`
+	RetentionDays int               `yaml:"retention_days,omitempty"`
+	HealthServer HealthServerConfig `yaml:"health_server,omitempty"`
 }
 
 func (c Config) GetDBPath() string {
@@ -110,6 +131,13 @@ func (c Config) GetRetentionDays() int {
 		return 90
 	}
 	return c.RetentionDays
+}
+
+func (c Config) GetHealthServer() HealthServerConfig {
+	if !c.HealthServer.Enabled {
+		return HealthServerConfig{Enabled: false}
+	}
+	return c.HealthServer
 }
 
 func Load(path string) (*Config, error) {
@@ -142,6 +170,11 @@ func DefaultConfig() *Config {
 		},
 		DBPath:        "api-ping.db",
 		RetentionDays: 90,
+		HealthServer: HealthServerConfig{
+			Enabled: false,
+			Port:    8080,
+			Bind:    "0.0.0.0",
+		},
 	}
 }
 
