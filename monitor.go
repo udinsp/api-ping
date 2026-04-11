@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -51,11 +50,9 @@ func newMonitorCmd() *cobra.Command {
 
 			prevState := make(map[string]bool)
 			prevSlow := make(map[string]bool)
-			var endpointNames []string
 			for _, ep := range cfg.Endpoints {
 				prevState[ep.Name] = true
 				prevSlow[ep.Name] = false
-				endpointNames = append(endpointNames, ep.Name)
 			}
 
 			healthServer := health.New(cfg.HealthServer, store)
@@ -70,18 +67,6 @@ func newMonitorCmd() *cobra.Command {
 
 			fmt.Printf("api-ping monitoring %d endpoints...\n", len(cfg.Endpoints))
 			fmt.Println("Press Ctrl+C to stop")
-
-			healthServerConfig := cfg.GetHealthServer()
-			if healthServerConfig.Enabled {
-				addr := fmt.Sprintf("%s:%d", healthServerConfig.GetBind(), healthServerConfig.GetPort())
-				healthServer := health.New(addr, store, endpointNames)
-				go func() {
-					fmt.Printf("Health server listening on %s\n", addr)
-					if err := healthServer.Start(); err != nil && err != http.ErrServerClosed {
-						fmt.Fprintf(os.Stderr, "Health server error: %v\n", err)
-					}
-				}()
-			}
 
 			fmt.Println()
 
