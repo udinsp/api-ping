@@ -35,3 +35,8 @@ notifications:
 
 db_path: "api-ping.db"
 retention_days: 90
+
+health_server:
+  enabled: false
+  port: 8080
+  bind: "0.0.0.0"
