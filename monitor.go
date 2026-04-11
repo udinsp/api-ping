@@ -10,6 +10,7 @@ import (
 
 	"github.com/trioplanet/api-ping/internal/checker"
 	"github.com/trioplanet/api-ping/internal/config"
+	"github.com/trioplanet/api-ping/internal/http"
 	"github.com/trioplanet/api-ping/internal/notify"
 	"github.com/trioplanet/api-ping/internal/storage"
 
@@ -51,6 +52,17 @@ func newMonitorCmd() *cobra.Command {
 			fmt.Println("Press Ctrl+C to stop")
 			fmt.Println()
 
+			var metricsServer *http.Server
+			if cfg.Metrics.Enabled {
+				metricsServer = http.New(cfg.Metrics.GetAddress())
+				go func() {
+					fmt.Printf("Starting metrics server at %s\n", cfg.Metrics.GetAddress())
+					if err := metricsServer.Start(); err != nil && err != http.ErrServerClosed {
+						fmt.Fprintf(os.Stderr, "Metrics server error: %v\n", err)
+					}
+				}()
+			}
+
 			quit := make(chan os.Signal, 1)
 			signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -79,6 +91,9 @@ func newMonitorCmd() *cobra.Command {
 
 			<-quit
 			fmt.Println("\nShutting down...")
+			if metricsServer != nil {
+				metricsServer.Stop()
+			}
 			wg.Wait()
 		},
 	}
@@ -86,6 +101,8 @@ func newMonitorCmd() *cobra.Command {
 
 func doCheck(ep config.Endpoint, notifs config.Notifications, store *storage.Store, prevState map[string]bool, prevSlow map[string]bool, mu *sync.Mutex) {
 	result := checker.Check(ep)
+
+	http.RecordCheck(result.Success, result.Duration.Seconds()*1000)
 
 	if err := store.SaveCheck(checker.ToStorageResult(result)); err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving check: %v\n", err)

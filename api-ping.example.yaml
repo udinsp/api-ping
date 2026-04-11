@@ -34,3 +34,8 @@ notifications:
     - recovered
 
 db_path: "api-ping.db"
+
+# Enable built-in HTTP health/metrics server
+metrics:
+  enabled: true
+  port: 8080  # or address: ":8080"

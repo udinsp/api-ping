@@ -95,6 +95,23 @@ type Config struct {
 	Endpoints     []Endpoint    `yaml:"endpoints"`
 	Notifications Notifications `yaml:"notifications,omitempty"`
 	DBPath        string        `yaml:"db_path,omitempty"`
+	Metrics       MetricsConfig `yaml:"metrics,omitempty"`
+}
+
+type MetricsConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Port    int    `yaml:"port,omitempty"`
+	Address string `yaml:"address,omitempty"`
+}
+
+func (m MetricsConfig) GetAddress() string {
+	if m.Address != "" {
+		return m.Address
+	}
+	if m.Port > 0 {
+		return fmt.Sprintf(":%d", m.Port)
+	}
+	return ":8080"
 }
 
 func (c Config) GetDBPath() string {
